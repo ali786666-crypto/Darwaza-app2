@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Darwaza Ultimate Premium</title>
+    <!-- FontAwesome & Google Fonts -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- MQTT for Real-time Connection -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --primary: #3b82f6; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #f8fafc; --text-muted: #94a3b8; --border: rgba(255, 255, 255, 0.1); }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+        body { background: #000; color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100dvh; overflow: hidden; margin: 0; }
+        .app-container { width: 100%; max-width: 430px; height: 100dvh; background: var(--bg-dark); display: flex; flex-direction: column; position: relative; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+        .screen { display: flex; flex-direction: column; height: 100%; width: 100%; flex: 1; overflow: hidden; background: var(--bg-dark); }
+        .hidden { display: none !important; }
+
+        /* HEADER & TABS */
+        .header { padding: 15px 20px; border-bottom: 1px solid var(--border); background: var(--bg-panel); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .header h1 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+        .status-dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 40px; scrollbar-width: none; }
+        .tabs { display: flex; background: rgba(0,0,0,0.5); border-radius: 12px; margin-bottom: 20px; padding: 5px; flex-shrink: 0; }
+        .tab-btn { flex: 1; padding: 12px 5px; text-align: center; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; align-items: center; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 10px rgba(59,130,246,0.3); }
+
+        /* CARDS */
+        .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px; padding: 15px; margin-bottom: 15px; position: relative; }
+        .door-card { display: flex; align-items: center; gap: 12px; }
+        .door-icon-box { width: 50px; height: 50px; background: rgba(59, 130, 246, 0.1); border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 22px; color: var(--primary); flex-shrink: 0;}
+        .door-info { flex: 1; overflow: hidden; } .door-info h3 { font-size: 16px; white-space: nowrap; text-overflow: ellipsis; }
+        .btn-small { background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: white; padding: 6px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;}
+        .del-icon { color: var(--danger); position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 16px; }
+        
+        .history-item { display: flex; gap: 12px; align-items: center; border-left: 4px solid var(--primary); }
+        .history-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; flex-shrink: 0;}
+        .history-info { flex: 1; } .history-info h4 { font-size: 14px; margin-bottom: 2px; } .history-time { font-size: 10px; color: var(--text-muted); text-align: right; }
+
+        /* FORMS & SETTINGS */
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .toggle-switch { position: relative; width: 46px; height: 24px; } .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.2); transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--success); } input:checked + .slider:before { transform: translateX(22px); }
+        
+        .input-group { margin-bottom: 15px; width: 100%; }
+        input[type="text"], select { width: 100%; padding: 14px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: white; font-size: 14px; outline: none; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 600; font-size: 15px; display: flex; justify-content: center; align-items: center; gap: 8px; color: white; cursor: pointer; }
+        .btn-primary { background: var(--primary); } .btn-success { background: var(--success); } .btn-danger { background: var(--danger); }
+        .file-upload-btn { background: rgba(255,255,255,0.1); border: 1px dashed var(--border); padding: 12px; text-align: center; border-radius: 10px; font-size: 13px; cursor: pointer; display: block; margin-top: 10px; color: var(--primary); }
+
+        /* MODALS */
+        .modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal.active { opacity: 1; pointer-events: all; }
+        .modal-box { background: var(--bg-panel); width: 100%; max-width: 350px; padding: 25px; border-radius: 20px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;}
+        .pulse-avatar { width: 80px; height: 80px; border-radius: 50%; border: 4px solid var(--primary); object-fit: cover; animation: pulseRing 1.5s infinite; margin-bottom: 10px; }
+        @keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        #large-qr-img { width: 220px; height: 220px; border-radius: 12px; border: 5px solid white; margin: 0 auto 15px auto; display: block; background: white;}
+
+        /* INCOMING 4 BUTTONS GRID (MATCHING YOUR IMAGE EXACTLY) */
+        .loc-badge { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 20px; border-radius: 30px; font-size: 14px; font-weight: 600; border: 1px solid currentColor; margin-bottom: 20px;}
+        .loc-safe { color: var(--success); background: rgba(16, 185, 129, 0.1); }
+        .loc-warn { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+        
+        .btn-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-top: 15px; }
+        .btn-act { padding: 18px 10px; border-radius: 14px; font-size: 16px; font-weight: 600; display: flex; justify-content: center; align-items: center; gap: 8px; border: none; color: white; cursor: pointer; }
+        .btn-vid { background: #10b981; } /* Green */
+        .btn-txt { background: #3b82f6; } /* Blue */
+        .btn-ai { background: #f59e0b; color: #000; } /* Yellow */
+        .btn-ign { background: #ef4444; } /* Red */
+
+        /* MEDIA (Camera, Video Call) */
+        .camera-box { width: 100%; height: 220px; border-radius: 16px; background: #000; margin-bottom: 15px; overflow: hidden; position: relative; border: 2px solid var(--border); flex-shrink: 0;}
+        video, canvas { width: 100%; height: 100%; object-fit: cover; }
+        .video-container { position: relative; width: 100%; flex: 1; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #remote-video { width: 100%; height: 100%; object-fit: cover; }
+        #local-video { position: absolute; top: 20px; right: 20px; width: 90px; height: 130px; border-radius: 12px; object-fit: cover; border: 2px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 10;}
+        .video-overlay { position: absolute; bottom: 0; left: 0; width: 100%; padding: 20px; background: linear-gradient(transparent, rgba(0,0,0,0.9)); z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+
+        /* CHAT UI */
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; background: var(--bg-dark); }
+        .msg-sys { text-align: center; font-size: 12px; color: var(--success); background: rgba(16, 185, 129, 0.1); padding: 5px 15px; border-radius: 20px; align-self: center; }
+        .msg-bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; position: relative; word-wrap: break-word; }
+        .msg-mine { background: var(--primary); align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-theirs { background: var(--bg-panel); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg-time { font-size: 10px; opacity: 0.6; display: block; text-align: right; margin-top: 4px; }
+        
+        .quick-replies { display: flex; gap: 10px; overflow-x: auto; padding: 10px 15px; background: var(--bg-panel); border-top: 1px solid var(--border); scrollbar-width: none; }
+        .qr-chip { background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: white; padding: 8px 14px; border-radius: 20px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+        
+        .chat-input-area { padding: 10px 15px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-shrink: 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+        .chat-input-area input { flex: 1; padding: 12px 15px; border-radius: 25px; margin: 0; background: rgba(0,0,0,0.5); font-size: 14px; color: white; border: none;}
+        .action-btn { width: 45px; height: 45px; border-radius: 50%; border: none; background: var(--primary); color: white; font-size: 18px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; cursor:pointer;}
+        .action-btn.recording { background: var(--danger); animation: pulseRing 1s infinite; }
+        audio { height: 35px; max-width: 200px; outline: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- SCREEN 1: OWNER DASHBOARD -->
+    <div id="screen-owner" class="screen hidden">
+        <div class="header">
+            <h1><i class="fa-solid fa-house-user"></i> My Home</h1>
+            <div style="font-size: 12px; display: flex; align-items: center; gap:5px;"><span class="status-dot online"></span> Secure</div>
+        </div>
+        
+        <div class="content">
+            <div class="tabs">
+                <div class="tab-btn active" onclick="switchTab('doors')"><i class="fa-solid fa-door-closed"></i> Doors</div>
+                <div class="tab-btn" onclick="switchTab('history')"><i class="fa-solid fa-clock-rotate-left"></i> History</div>
+                <div class="tab-btn" onclick="switchTab('settings')"><i class="fa-solid fa-gear"></i> Settings</div>
+            </div>
+
+            <!-- DOORS -->
+            <div id="tab-doors">
+                <div class="doors-grid" id="doors-container"></div>
+                <button class="btn btn-primary" style="margin-top: 20px;" onclick="document.getElementById('add-door-modal').classList.add('active')"><i class="fa-solid fa-plus"></i> Add New Door</button>
+            </div>
+
+            <!-- HISTORY -->
+            <div id="tab-history" class="hidden"><div id="history-container"></div></div>
+
+            <!-- SETTINGS -->
+            <div id="tab-settings" class="hidden">
+                <div class="card">
+                    <div class="setting-row">
+                        <div>
+                            <h3 style="font-size: 15px;"><i class="fa-solid fa-moon"></i> Do Not Disturb (DND)</h3>
+                            <p style="font-size: 11px; color: var(--text-muted);">Mute rings. AI will auto-reply.</p>
+                        </div>
+                        <label class="toggle-switch"><input type="checkbox" id="dnd-toggle" onchange="saveSettings()"><span class="slider"></span></label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="font-size: 15px; margin-bottom: 10px;"><i class="fa-solid fa-music"></i> Ringtone Selection</h3>
+                    <select id="ringtone-select" onchange="saveSettings()" style="margin-bottom: 10px;">
+                        <option value="classic">Classic Ding-Dong</option>
+                        <option value="modern">Modern Chime</option>
+                        <option value="urgent">Urgent Security</option>
+                        <option value="custom">My Custom MP3</option>
+                    </select>
+                    
+                    <div id="custom-audio-div" class="hidden">
+                        <label class="file-upload-btn">
+                            <i class="fa-solid fa-upload"></i> Upload Mobile Ringtone
+                            <input type="file" accept="audio/*" class="hidden" id="custom-audio-file" onchange="loadCustomRingtone(event)">
+                        </label>
+                        <p id="custom-file-name" style="font-size: 11px; color: var(--success); margin-top: 5px; text-align: center;"></p>
+                    </div>
+
+                    <button class="btn-small" style="width: 100%; justify-content: center; margin-top: 15px; padding: 10px;" onclick="testRingtone()"><i class="fa-solid fa-play"></i> Test Ringtone</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREEN 2: VISITOR ENTRY -->
+    <div id="screen-visitor" class="screen hidden">
+        <div class="header">
+            <h1><i class="fa-solid fa-bell"></i> Smart Doorbell</h1>
+            <div style="font-size: 12px; display: flex; align-items: center; gap:5px;"><span class="status-dot online"></span> Live</div>
+        </div>
+        <div class="content" style="display: flex; flex-direction: column;">
+            <div style="text-align: center; margin-bottom: 10px;">
+                <p style="color: var(--text-muted); font-size: 13px;">Ringing at</p>
+                <h2 id="visit-door-name" style="color: var(--primary); font-size: 22px;">Front Door</h2>
+            </div>
+            
+            <div class="camera-box" id="v-cam-box"><video id="v-local-video" autoplay playsinline muted></video></div>
+            <div id="loc-status" style="text-align:center; font-size:12px; margin-bottom:15px; color:var(--warning);"><i class="fa-solid fa-location-crosshairs fa-spin"></i> Checking Location...</div>
+
+            <div class="input-group"><input type="text" id="v-name" placeholder="Your Name (Required)" required></div>
+            <div class="input-group"><input type="text" id="v-msg" placeholder="Purpose (e.g. Courier Delivery)"></div>
+            <button class="btn btn-primary" id="btn-ring" onclick="sendRing()"><i class="fa-solid fa-bell"></i> Ring Bell & Connect</button>
+        </div>
+    </div>
+
+    <!-- SCREEN 3: LIVE CHAT (Text/Voice/AI) -->
+    <div id="screen-chat" class="screen hidden">
+        <div class="header">
+            <button onclick="endSession()" style="background:none; border:none; color:var(--danger); font-size: 20px;"><i class="fa-solid fa-power-off"></i></button>
+            <h1 id="chat-title" style="font-size: 16px; text-align: center; flex: 1;">Live Chat</h1>
+            <img id="chat-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: none;">
+        </div>
+        
+        <div class="chat-messages" id="chat-box"></div>
+        
+        <div class="quick-replies" id="chat-quick-replies" style="display:none;">
+            <div class="qr-chip" onclick="sendText('I am coming!')">I'm coming</div>
+            <div class="qr-chip" onclick="sendText('Please leave it at the door.')">Leave at door</div>
+            <div class="qr-chip" onclick="sendText('Please wait a minute.')">Wait a minute</div>
+        </div>
+        
+        <div class="chat-input-area" id="chat-input-area">
+            <button class="action-btn" id="mic-btn" onmousedown="startChatMic()" onmouseup="stopChatMic()" ontouchstart="startChatMic()" ontouchend="stopChatMic()"><i class="fa-solid fa-microphone"></i></button>
+            <input type="text" id="chat-input" placeholder="Type message...">
+            <button class="action-btn" onclick="sendText()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- SCREEN 4: LIVE VIDEO CALL (WebRTC) -->
+    <div id="screen-video" class="screen hidden">
+        <div class="video-container">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" autoplay playsinline muted></video>
+            <div class="video-overlay">
+                <div style="text-align: center; color: white; font-weight: 500; text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-bottom: 10px;" id="video-status-text">Connected Live</div>
+                <div style="display: flex; gap: 20px;">
+                    <button class="action-btn" style="background: rgba(255,255,255,0.2); width:60px; height:60px; font-size:24px;" onclick="toggleVideoMic()" id="btn-toggle-mic"><i class="fa-solid fa-microphone"></i></button>
+                    <button class="action-btn" style="background: var(--danger); width:60px; height:60px; font-size:24px;" onclick="endSession()"><i class="fa-solid fa-phone-slash"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <!-- Add Door -->
+    <div id="add-door-modal" class="modal">
+        <div class="modal-box">
+            <h2 style="margin-bottom: 20px; text-align: center;">Create New Door</h2>
+            <div class="input-group"><input type="text" id="door-name" placeholder="Door Name (e.g. Office)"></div>
+            <div class="input-group"><select id="door-icon"><option value="fa-door-closed">🚪 Solid Door</option><option value="fa-building">🏢 Building</option><option value="fa-house">🏠 House</option></select></div>
+            <button class="btn btn-success" onclick="saveDoor()"><i class="fa-solid fa-check"></i> Save Door</button>
+            <button class="btn btn-danger" onclick="document.getElementById('add-door-modal').classList.remove('active')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- QR View -->
+    <div id="qr-view-modal" class="modal">
+        <div class="modal-box" style="text-align: center;">
+            <h2 id="qr-view-title" style="margin-bottom: 15px; color: var(--primary);">Door Name</h2>
+            <img id="large-qr-img" src="">
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Print & place on your door.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-danger" onclick="document.getElementById('qr-view-modal').classList.remove('active')">Close</button>
+                <button class="btn btn-primary" onclick="downloadQR()"><i class="fa-solid fa-download"></i> Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- INCOMING RING MODAL (Beautiful 4 Buttons) -->
+    <div id="incoming-modal" class="modal">
+        <div style="text-align: center; width: 100%; max-width: 340px; background: var(--bg-panel); padding: 25px; border-radius: 20px; border: 1px solid var(--border);">
+            <div id="alert-security"></div>
+            
+            <img id="alert-photo" src="" class="pulse-avatar" style="margin-top: 5px;">
+            <h2 id="alert-name" style="font-size: 24px;">Visitor</h2>
+            <p id="alert-msg" style="font-size: 14px; margin: 10px 0 20px 0; color: var(--text-muted);">"Message"</p>
+            
+            <div class="btn-action-grid">
+                <button class="btn-act btn-vid" onclick="acceptVideo()"><i class="fa-solid fa-video"></i> Video Call</button>
+                <button class="btn-act btn-txt" onclick="acceptChat()"><i class="fa-solid fa-message"></i> Text Chat</button>
+                <button class="btn-act btn-ai" onclick="sendBusyAI()"><i class="fa-solid fa-robot"></i> AI Busy</button>
+                <button class="btn-act btn-ign" onclick="ignoreRing()"><i class="fa-solid fa-xmark"></i> Ignore</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /* =========================================================================
+       CORE LOGIC & MQTT
+       ========================================================================= */
+    // Using HiveMQ for more stable websocket connection without drops
+    const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt'); 
+    let ownerId = localStorage.getItem('dwz_owner_id'); let myRole = ''; let currentSessionId = null; let targetOwnerId = null;
+    let appSettings = JSON.parse(localStorage.getItem('dwz_settings')) || { dnd: false, ringtone: 'classic', customAudio: null };
+    
+    let localStream = null; let peerConnection = null; const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    let chatMediaRecorder = null; let chatAudioChunks = [];
+    let ringTimeout; let visitorLocation = null; let customAudioPlayer = new Audio(); let audioCtx; let ringInterval;
+    let incomingData = null;
+
+    function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
+
+    // INIT
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('visit')) {
+        myRole = 'visitor'; targetOwnerId = urlParams.get('visit');
+        document.getElementById('visit-door-name').innerText = decodeURIComponent(urlParams.get('dname') || 'Door');
+        showScreen('screen-visitor'); initVisitor();
+    } else {
+        myRole = 'owner';
+        if(!ownerId) { ownerId = 'own_' + Date.now(); localStorage.setItem('dwz_owner_id', ownerId); }
+        loadSettingsUI(); showScreen('screen-owner'); renderDoors(); renderHistory();
+    }
+
+    mqttClient.on('connect', () => { if (myRole === 'owner') mqttClient.subscribe(`dwz/ring/${ownerId}`); });
+    
+    // MAIN MESSAGE HANDLER (Fixes the loop bug)
+    mqttClient.on('message', async (topic, message) => {
+        const data = JSON.parse(message.toString());
+        
+        // Owner receives Ring
+        if (myRole === 'owner' && topic === `dwz/ring/${ownerId}`) handleIncomingRing(data);
+        
+        // Both receive Session Data
+        if (currentSessionId && topic === `dwz/sess/${currentSessionId}`) {
+            // CRITICAL FIX: Ignore messages sent by ourselves so the app doesn't crash in a loop!
+            if (data.from === myRole) return;
+
+            if (data.type === 'mode_chat') {
+                document.getElementById('chat-input-area').style.display = 'flex';
+                document.getElementById('chat-title').innerText = "Homeowner connected";
+                setupChatMic();
+            }
+            else if (data.type === 'offer') {
+                showScreen('screen-video');
+                await handleOffer(data.sdp);
+            }
+            else if (data.type === 'answer') await handleAnswer(data.sdp);
+            else if (data.type === 'candidate') await handleCandidate(data.candidate);
+            else if (data.type === 'chat_text' || data.type === 'chat_audio') appendChatBubble(data);
+            else if (data.type === 'sys') appendSystemMsg(data.text);
+            else if (data.type === 'tts') playAI(data.text);
+            else if (data.type === 'end') handleSessionEnded();
+        }
+    });
+
+    // Helper to send session messages safely
+    function sendSess(payload) { 
+        payload.from = myRole; // Tags who sent it
+        mqttClient.publish(`dwz/sess/${currentSessionId}`, JSON.stringify(payload)); 
+    }
+
+    /* =====================================
+       OWNER: DASHBOARD & SETTINGS
+       ===================================== */
+    function switchTab(tab) { ['doors', 'history', 'settings'].forEach(t => document.getElementById(`tab-${t}`).classList.add('hidden')); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById(`tab-${tab}`).classList.remove('hidden'); event.currentTarget.classList.add('active'); }
+    function loadSettingsUI() { document.getElementById('dnd-toggle').checked = appSettings.dnd; document.getElementById('ringtone-select').value = appSettings.ringtone; if(appSettings.ringtone === 'custom') document.getElementById('custom-audio-div').classList.remove('hidden'); if(appSettings.customAudio) document.getElementById('custom-file-name').innerText = "Custom audio saved."; }
+    function saveSettings() { appSettings.dnd = document.getElementById('dnd-toggle').checked; appSettings.ringtone = document.getElementById('ringtone-select').value; document.getElementById('custom-audio-div').classList.toggle('hidden', appSettings.ringtone !== 'custom'); localStorage.setItem('dwz_settings', JSON.stringify(appSettings)); }
+    function loadCustomRingtone(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.readAsDataURL(f); r.onload = () => { appSettings.customAudio = r.result; document.getElementById('custom-file-name').innerText = "Saved!"; saveSettings(); }; }
+
+    function saveDoor() {
+        const name = document.getElementById('door-name').value; const icon = document.getElementById('door-icon').value; if(!name) return;
+        let doors = JSON.parse(localStorage.getItem('dwz_doors') || '[]'); const doorId = 'dr_' + Date.now();
+        const link = `${window.location.href.split('?')[0]}?visit=${ownerId}&door=${doorId}&dname=${encodeURIComponent(name)}`;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(link)}`;
+        doors.push({ id: doorId, name, icon, link, qrUrl }); localStorage.setItem('dwz_doors', JSON.stringify(doors));
+        document.getElementById('add-door-modal').classList.remove('active'); document.getElementById('door-name').value = ''; renderDoors();
+    }
+    function renderDoors() { let doors = JSON.parse(localStorage.getItem('dwz_doors') || '[]'); document.getElementById('doors-container').innerHTML = doors.map(d => `<div class="card door-card"><i class="fa-solid fa-trash del-icon" onclick="deleteDoor('${d.id}')"></i><div class="door-icon-box"><i class="fa-solid ${d.icon}"></i></div><div class="door-info"><h3>${d.name}</h3><button class="btn-small" onclick="openQRView('${d.qrUrl}', '${d.name}')"><i class="fa-solid fa-expand"></i> View QR</button></div></div>`).join(''); }
+    function deleteDoor(id) { let doors = JSON.parse(localStorage.getItem('dwz_doors') || '[]'); localStorage.setItem('dwz_doors', JSON.stringify(doors.filter(d => d.id !== id))); renderDoors(); }
+    function openQRView(qr, name) { document.getElementById('qr-view-title').innerText = name; document.getElementById('large-qr-img').src = qr; document.getElementById('qr-view-modal').classList.add('active'); }
+    async function downloadQR() { const a = document.createElement('a'); a.href = document.getElementById('large-qr-img').src; a.download = 'QR.png'; a.click(); }
+
+    function saveHistory(data, status = "Rung") { let history = JSON.parse(localStorage.getItem('dwz_history') || '[]'); history.unshift({ name: data.vName, msg: `${status}: ${data.msg}`, photo: data.photo, door: data.doorName, time: new Date().toLocaleString() }); if(history.length > 20) history.pop(); localStorage.setItem('dwz_history', JSON.stringify(history)); renderHistory(); }
+    function renderHistory() { let history = JSON.parse(localStorage.getItem('dwz_history') || '[]'); document.getElementById('history-container').innerHTML = history.map(h => `<div class="card history-item"><img src="${h.photo}" class="history-img"><div class="history-info"><h4>${h.name} <span style="font-size:10px; color:var(--primary);">(${h.door})</span></h4><p style="font-size:11px; color:gray;">${h.msg}</p></div><div class="history-time">${h.time.split(', ')[0]}<br>${h.time.split(', ')[1]}</div></div>`).join(''); }
+
+    /* =====================================
+       VISITOR LOGIC 
+       ===================================== */
+    async function initVisitor() {
+        try { localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); document.getElementById('v-local-video').srcObject = localStream; } catch(e) { alert("Camera required."); }
+        if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((pos) => { visitorLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude }; document.getElementById('loc-status').innerHTML = `<span style="color:var(--success);"><i class="fa-solid fa-shield-check"></i> Location Verified</span>`; }, () => { document.getElementById('loc-status').innerHTML = `<span style="color:var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Location Hidden</span>`; }); }
+    }
+
+    function sendRing() {
+        const name = document.getElementById('v-name').value; const msg = document.getElementById('v-msg').value; if(!name) return alert("Name required");
+        try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch(e){} // Unlock audio for AI safely
+        
+        // Take Photo
+        const canvas = document.createElement('canvas'); canvas.width = 150; canvas.height = 150; 
+        try { canvas.getContext('2d').drawImage(document.getElementById('v-local-video'), 0, 0, 150, 150); } catch(e){}
+        const photo = canvas.toDataURL('image/jpeg', 0.5);
+
+        // NOTE: We do NOT stop the camera here anymore. Keeping it alive makes the transition to video call instant and bug-free!
+        
+        currentSessionId = 'sess_' + Date.now();
+        const payload = { sessionId: currentSessionId, doorName: document.getElementById('visit-door-name').innerText, vName: name, msg: msg, photo: photo, location: visitorLocation };
+        
+        mqttClient.publish(`dwz/ring/${targetOwnerId}`, JSON.stringify(payload)); 
+        mqttClient.subscribe(`dwz/sess/${currentSessionId}`);
+        
+        // Go to Chat UI immediately to wait
+        showScreen('screen-chat');
+        document.getElementById('chat-title').innerText = "Ringing Homeowner...";
+        document.getElementById('chat-box').innerHTML = '';
+        document.getElementById('chat-input-area').style.display = 'none'; // Hidden until answered
+        appendSystemMsg("Please wait, connecting to homeowner...");
+        appendChatBubble({ sender: 'visitor', type: 'chat_text', content: msg || "Hello!", time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) });
+    }
+
+    function playAI(text) {
+        document.getElementById('chat-title').innerText = "AI Auto-Reply";
+        appendSystemMsg(`🤖 Auto-Reply: "${text}"`);
+        const u = new SpeechSynthesisUtterance(text); u.rate = 0.9; speechSynthesis.speak(u);
+    }
+
+    /* =====================================
+       OWNER: RINGING & 4 ACTIONS
+       ===================================== */
+    function playRingtone() {
+        if(appSettings.ringtone === 'custom' && appSettings.customAudio) { customAudioPlayer.src = appSettings.customAudio; customAudioPlayer.loop = true; customAudioPlayer.play().catch(e=>console.log(e)); return; }
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if(audioCtx.state === 'suspended') audioCtx.resume();
+        const pt = () => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination);
+            if(appSettings.ringtone === 'classic') { osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.5); gain.gain.setValueAtTime(1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1); } 
+            else if (appSettings.ringtone === 'modern') { osc.type = 'triangle'; osc.frequency.setValueAtTime(1200, audioCtx.currentTime); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); } 
+            else { osc.type = 'square'; osc.frequency.setValueAtTime(2000, audioCtx.currentTime); gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.setValueAtTime(0, audioCtx.currentTime + 0.1); }
+            osc.start(); osc.stop(audioCtx.currentTime + 1);
+        }; pt(); ringInterval = setInterval(pt, appSettings.ringtone === 'urgent' ? 500 : 2000);
+    }
+    function stopAudio() { clearInterval(ringInterval); clearTimeout(ringTimeout); customAudioPlayer.pause(); customAudioPlayer.currentTime = 0; }
+    function testRingtone() { playRingtone(); setTimeout(stopAudio, 3000); }
+
+    function handleIncomingRing(data) {
+        incomingData = data; currentSessionId = data.sessionId;
+        if(appSettings.dnd) { saveHistory(data, "DND Missed"); sendSess({ type: 'tts', text: "The homeowner is currently busy." }); setTimeout(()=>sendSess({type:'end'}), 4000); return; }
+        saveHistory(data);
+        
+        const secDiv = document.getElementById('alert-security');
+        if(data.location) secDiv.innerHTML = `<span class="loc-badge loc-safe"><i class="fa-solid fa-shield-check"></i> Location Verified</span>`;
+        else secDiv.innerHTML = `<span class="loc-badge loc-warn"><i class="fa-solid fa-triangle-exclamation"></i> Location Hidden</span>`;
+        
+        document.getElementById('alert-door-name').innerText = data.doorName; document.getElementById('alert-name').innerText = data.vName; document.getElementById('alert-msg').innerText = `"${data.msg}"`; document.getElementById('alert-photo').src = data.photo;
+        document.getElementById('incoming-modal').classList.add('active'); playRingtone();
+        ringTimeout = setTimeout(() => { if(document.getElementById('incoming-modal').classList.contains('active')) sendBusyAI(); }, 20000);
+    }
+
+    // 1. TEXT CHAT ACTION (Blue Button)
+    function acceptChat() {
+        stopAudio(); document.getElementById('incoming-modal').classList.remove('active');
+        mqttClient.subscribe(`dwz/sess/${currentSessionId}`); 
+        
+        showScreen('screen-chat');
+        document.getElementById('chat-title').innerText = incomingData.vName; document.getElementById('chat-avatar').src = incomingData.photo; document.getElementById('chat-avatar').style.display = 'block'; document.getElementById('chat-box').innerHTML = ''; document.getElementById('chat-quick-replies').style.display = 'flex';
+        appendChatBubble({ sender: 'visitor', type: 'chat_text', content: incomingData.msg, time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) });
+        
+        setupChatMic();
+        sendSess({ type: 'mode_chat' }); 
+        sendSess({ type: 'sys', text: 'Homeowner connected.' });
+    }
+
+    // 2. VIDEO CALL ACTION (Green Button)
+    async function acceptVideo() {
+        stopAudio(); document.getElementById('incoming-modal').classList.remove('active');
+        mqttClient.subscribe(`dwz/sess/${currentSessionId}`); 
+        
+        showScreen('screen-video');
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+            document.getElementById('local-video').srcObject = localStream;
+        } catch(e) { alert("Camera access denied."); sendSess({ type: 'end' }); handleSessionEnded(); return; }
+
+        setupWebRTC(); 
+        const offer = await peerConnection.createOffer(); 
+        await peerConnection.setLocalDescription(offer);
+        sendSess({ type: 'offer', sdp: peerConnection.localDescription });
+    }
+
+    // 3. AI BUSY ACTION (Yellow Button)
+    function sendBusyAI() {
+        stopAudio(); document.getElementById('incoming-modal').classList.remove('active');
+        sendSess({ type: 'tts', text: "The homeowner is unable to answer right now. Please leave your package." });
+        setTimeout(() => { sendSess({ type: 'end' }); handleSessionEnded(); }, 6000);
+    }
+
+    // 4. IGNORE ACTION (Red Button)
+    function ignoreRing() { stopAudio(); document.getElementById('incoming-modal').classList.remove('active'); sendSess({ type: 'end' }); handleSessionEnded(); }
+
+    /* =====================================
+       SHARED WEBRTC & CHAT
+       ===================================== */
+    function setupChatMic() { if(navigator.mediaDevices) navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { chatMediaRecorder = new MediaRecorder(stream); chatMediaRecorder.ondataavailable = e => { if(e.data.size > 0) chatAudioChunks.push(e.data); }; chatMediaRecorder.onstop = () => { const reader = new FileReader(); reader.readAsDataURL(new Blob(chatAudioChunks, { type: 'audio/webm' })); reader.onloadend = () => { sendSess({ type: 'chat_audio', content: reader.result, time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) }); }; }; }).catch(e=>{}); }
+    function sendText(text = null) { const input = document.getElementById('chat-input'); const msg = text || input.value.trim(); if(!msg || !currentSessionId) return; sendSess({ type: 'chat_text', content: msg, time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) }); input.value = ''; }
+    function startChatMic() { if(chatMediaRecorder) { chatAudioChunks = []; chatMediaRecorder.start(); document.getElementById('mic-btn').classList.add('recording'); } }
+    function stopChatMic() { if(chatMediaRecorder && chatMediaRecorder.state !== 'inactive') { chatMediaRecorder.stop(); document.getElementById('mic-btn').classList.remove('recording'); } }
+    
+    function appendSystemMsg(text) { const box = document.getElementById('chat-box'); box.innerHTML += `<div class="msg-sys">${text}</div>`; box.scrollTop = box.scrollHeight; }
+    function appendChatBubble(data) { const box = document.getElementById('chat-box'); const isMine = data.from === myRole; const html = data.type === 'chat_text' ? data.content : `<audio controls src="${data.content}"></audio>`; box.innerHTML += `<div class="msg-bubble ${isMine ? 'msg-mine' : 'msg-theirs'}">${html}<span class="msg-time">${data.time}</span></div>`; box.scrollTop = box.scrollHeight; }
+
+    function setupWebRTC() {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        if(localStream) localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+        peerConnection.ontrack = (event) => { document.getElementById('remote-video').srcObject = event.streams[0]; };
+        peerConnection.onicecandidate = (event) => { if(event.candidate) sendSess({ type: 'candidate', candidate: event.candidate }); };
+    }
+    async function handleOffer(sdp) { if(!peerConnection) setupWebRTC(); await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp)); const answer = await peerConnection.createAnswer(); await peerConnection.setLocalDescription(answer); sendSess({ type: 'answer', sdp: peerConnection.localDescription }); }
+    async function handleAnswer(sdp) { await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp)); }
+    async function handleCandidate(candidate) { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); }
+    function toggleVideoMic() { const track = localStream.getAudioTracks()[0]; track.enabled = !track.enabled; document.getElementById('btn-toggle-mic').style.color = track.enabled ? 'white' : 'var(--danger)'; }
+
+    function endSession() { sendSess({ type: 'end' }); handleSessionEnded(); }
+    function handleSessionEnded() {
+        if(currentSessionId) mqttClient.unsubscribe(`dwz/sess/${currentSessionId}`); currentSessionId = null;
+        if(peerConnection) { peerConnection.close(); peerConnection = null; } 
+        if(localStream) { localStream.getTracks().forEach(t=>t.stop()); localStream = null; }
+        
+        document.getElementById('chat-box').innerHTML = ''; document.getElementById('chat-avatar').style.display = 'none'; document.getElementById('chat-quick-replies').style.display = 'none';
+        if(myRole === 'owner') showScreen('screen-owner'); 
+        else document.body.innerHTML = `<div style="text-align:center; padding:20px; color:gray;"><i class="fa-solid fa-power-off" style="font-size:40px; margin-bottom:20px; color:var(--danger);"></i><h3>Session Ended</h3><p>You may close this tab.</p></div>`;
+    }
+</script>
+</body>
+</html>
